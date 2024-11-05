@@ -8,70 +8,70 @@ from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import hmac
 import os
 
-# Generación de claves
-def generar_claves():
-    # Clave privada del servidor
-    clave_privada_servidor = rsa.generate_private_key(
+# Key generation
+def generate_keys():
+    # Server private key
+    server_private_key = rsa.generate_private_key(
         public_exponent=65537,
         key_size=2048,
         backend=default_backend()
     )
-    # Clave pública del servidor
-    clave_publica_servidor = clave_privada_servidor.public_key()
+    # Server public key
+    server_public_key = server_private_key.public_key()
 
-    # Clave privada del cliente (entidad financiera)
-    clave_privada_cliente = rsa.generate_private_key(
+    # Client private key (financial entity)
+    client_private_key = rsa.generate_private_key(
         public_exponent=65537,
         key_size=2048,
         backend=default_backend()
     )
-    # Clave pública del cliente
-    clave_publica_cliente = clave_privada_cliente.public_key()
+    # Client public key
+    client_public_key = client_private_key.public_key()
 
-    return clave_privada_servidor, clave_publica_servidor, clave_privada_cliente, clave_publica_cliente
+    return server_private_key, server_public_key, client_private_key, client_public_key
 
-# Cifrado de datos de pago
-def cifrar_datos(clave_publica, datos):
-    datos_cifrados = clave_publica.encrypt(
-        datos,
+# Encryption of payment data
+def encrypt_data(public_key, data):
+    encrypted_data = public_key.encrypt(
+        data,
         padding.OAEP(
             mgf=padding.MGF1(algorithm=hashes.SHA256()),
             algorithm=hashes.SHA256(),
             label=None
         )
     )
-    return datos_cifrados
+    return encrypted_data
 
-# Descifrado de datos de pago
-def descifrar_datos(clave_privada, datos_cifrados):
-    datos_descifrados = clave_privada.decrypt(
-        datos_cifrados,
+# Decryption of payment data
+def decrypt_data(private_key, encrypted_data):
+    decrypted_data = private_key.decrypt(
+        encrypted_data,
         padding.OAEP(
             mgf=padding.MGF1(algorithm=hashes.SHA256()),
             algorithm=hashes.SHA256(),
             label=None
         )
     )
-    return datos_descifrados
+    return decrypted_data
 
-# Firma digital para autenticidad
-def firmar_datos(clave_privada, datos):
-    firma = clave_privada.sign(
-        datos,
+# Digital signature for authenticity
+def sign_data(private_key, data):
+    signature = private_key.sign(
+        data,
         padding.PSS(
             mgf=padding.MGF1(hashes.SHA256()),
             salt_length=padding.PSS.MAX_LENGTH
         ),
         hashes.SHA256()
     )
-    return firma
+    return signature
 
-# Verificación de firma
-def verificar_firma(clave_publica, firma, datos):
+# Signature verification
+def verify_signature(public_key, signature, data):
     try:
-        clave_publica.verify(
-            firma,
-            datos,
+        public_key.verify(
+            signature,
+            data,
             padding.PSS(
                 mgf=padding.MGF1(hashes.SHA256()),
                 salt_length=padding.PSS.MAX_LENGTH
@@ -82,51 +82,52 @@ def verificar_firma(clave_publica, firma, datos):
     except Exception:
         return False
 
-# Generación de un hash para la integridad de los datos
-def generar_hash(datos):
+# Generation of a hash for data integrity
+def generate_hash(data):
     digest = hashes.Hash(hashes.SHA256(), backend=default_backend())
-    digest.update(datos)
+    digest.update(data)
     return digest.finalize()
 
-# Verificación del hash
-def verificar_hash(hash_original, datos):
-    nuevo_hash = generar_hash(datos)
-    return nuevo_hash == hash_original
+# Hash verification
+def verify_hash(original_hash, data):
+    new_hash = generate_hash(data)
+    return new_hash == original_hash
 
-# Simulación de envío de datos de pago
-def sistema_de_pago(datos_de_pago):
-    # Generación de claves para el servidor y cliente
-    clave_privada_servidor, clave_publica_servidor, clave_privada_cliente, clave_publica_cliente = generar_claves()
+# Payment data sending simulation
+def payment_system(payment_data):
+    # Key generation for server and client
+    server_private_key, server_public_key, client_private_key, client_public_key = generate_keys()
     
-    # Paso 1: Cifrar los datos de pago con la clave pública del cliente
-    datos_cifrados = cifrar_datos(clave_publica_cliente, datos_de_pago)
+    # Step 1: Encrypt payment data with the client's public key
+    encrypted_data = encrypt_data(client_public_key, payment_data)
     
-    # Paso 2: Firmar los datos cifrados con la clave privada del servidor para autenticidad
-    firma = firmar_datos(clave_privada_servidor, datos_cifrados)
+    # Step 2: Sign the encrypted data with the server's private key for authenticity
+    signature = sign_data(server_private_key, encrypted_data)
     
-    # Paso 3: Generar un hash de los datos cifrados para asegurar su integridad
-    hash_datos = generar_hash(datos_cifrados)
+    # Step 3: Generate a hash of the encrypted data to ensure its integrity
+    data_hash = generate_hash(encrypted_data)
     
-    # Simulación de recepción de los datos en el cliente
-    print("---- Enviando datos al cliente ----")
+    # Simulate receiving data on the client side
+    print("---- Sending data to client ----")
     
-    # Paso 4: Verificar la firma del servidor
-    autenticidad = verificar_firma(clave_publica_servidor, firma, datos_cifrados)
-    print("Autenticidad de los datos:", autenticidad)
+    # Step 4: Verify the server's signature
+    authenticity = verify_signature(server_public_key, signature, encrypted_data)
+    print("Data authenticity:", authenticity)
     
-    # Paso 5: Verificar la integridad de los datos usando el hash
-    integridad = verificar_hash(hash_datos, datos_cifrados)
-    print("Integridad de los datos:", integridad)
+    # Step 5: Verify the integrity of the data using the hash
+    integrity = verify_hash(data_hash, encrypted_data)
+    print("Data integrity:", integrity)
     
-    # Paso 6: Descifrar los datos si la autenticidad y la integridad son válidas
-    if autenticidad and integridad:
-        datos_descifrados = descifrar_datos(clave_privada_cliente, datos_cifrados)
-        print("Datos descifrados:", datos_descifrados.decode())
+    # Step 6: Decrypt the data if authenticity and integrity are valid
+    if authenticity and integrity:
+        decrypted_data = decrypt_data(client_private_key, encrypted_data)
+        print("Decrypted data:", decrypted_data.decode())
     else:
-        print("Error: Los datos de pago han sido comprometidos.")
+        print("Error: Payment data has been compromised.")
 
-# Ejemplo de datos de pago (string de ejemplo convertido a bytes)
-datos_de_pago = b"Numero de tarjeta: 1234-5678-9012-3456; Vencimiento: 12/24; CVV: 123"
+# Example of payment data (example string converted to bytes)
+payment_data = b"Card number: 1234-5678-9012-3456; Expiration: 12/24; CVV: 123"
 
-# Ejecución del sistema de pago
-sistema_de_pago(datos_de_pago)
+# Execute the payment system
+payment_system(payment_data)
+
